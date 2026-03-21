@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Buddy</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+      </svg>
+      Network Buddy
+    </div>
+    <div class="header-right">
+      <span id="ws-status" class="badge badge-offline">Connecting…</span>
+      <button id="btn-scan" class="btn-scan" onclick="triggerScan()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+        Scan Now
+      </button>
+    </div>
+  </header>
+
+  <!-- Summary bar -->
+  <section class="summary-bar">
+    <div class="stat-card">
+      <div class="stat-label">Devices Found</div>
+      <div class="stat-value" id="stat-devices">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Download</div>
+      <div class="stat-value" id="stat-dl">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Upload</div>
+      <div class="stat-value" id="stat-ul">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Last Scan</div>
+      <div class="stat-value" id="stat-scan">—</div>
+    </div>
+  </section>
+
+  <!-- Throughput chart -->
+  <section class="chart-section">
+    <h2 class="section-title">Network Throughput</h2>
+    <div class="chart-wrap">
+      <canvas id="throughput-chart"></canvas>
+    </div>
+  </section>
+
+  <!-- Device table -->
+  <section class="devices-section">
+    <h2 class="section-title">Connected Devices</h2>
+    <div class="table-wrap">
+      <table id="device-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Hostname / IP</th>
+            <th>MAC Address</th>
+            <th>Vendor</th>
+            <th>Download</th>
+            <th>Upload</th>
+            <th>Scan Method</th>
+          </tr>
+        </thead>
+        <tbody id="device-tbody">
+          <tr class="empty-row"><td colspan="7">Waiting for first scan…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Network Buddy &mdash; home network scanner &nbsp;|&nbsp; data refreshes every 2 s
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
