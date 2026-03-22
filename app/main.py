@@ -21,8 +21,9 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from .scanner import scan_network
 from .bandwidth import BandwidthMonitor
@@ -170,11 +171,14 @@ def _build_payload() -> dict:
         total_ul = total["upload_bps"]
         source = "local"
 
+    limits = _mikrotik.get_device_limits() if _mikrotik else {}
+
     return {
         "type":               "update",
         "source":             source,
         "devices":            devices,
         "ports":              ports,
+        "limits":             limits,
         "last_scan":          _last_scan,
         "total_download_bps": total_dl,
         "total_upload_bps":   total_ul,
@@ -211,6 +215,44 @@ async def get_stats():
         "last_scan":       _last_scan,
         "device_count":    len(_mikrotik.get_devices()) if _mikrotik else len(_devices),
     }
+
+
+class LimitRequest(BaseModel):
+    limit_mbps: int   # 0 = remove limit (unlimited)
+
+
+@app.get("/api/limits")
+async def get_limits():
+    if not _mikrotik:
+        return {"limits": {}, "presets": [0, 5, 30, 500, 1000]}
+    from .mikrotik import LIMIT_PRESETS
+    return {"limits": _mikrotik.get_device_limits(), "presets": LIMIT_PRESETS}
+
+
+@app.post("/api/limits/{ip}")
+async def set_limit(ip: str, body: LimitRequest):
+    if not _mikrotik:
+        raise HTTPException(status_code=503, detail="MikroTik not connected")
+    from .mikrotik import LIMIT_PRESETS
+    if body.limit_mbps != 0 and body.limit_mbps not in LIMIT_PRESETS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"limit_mbps must be one of {LIMIT_PRESETS}",
+        )
+    ok = await _mikrotik.set_device_limit(ip, body.limit_mbps)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to apply queue on router")
+    return {"ok": True, "ip": ip, "limit_mbps": body.limit_mbps}
+
+
+@app.delete("/api/limits/{ip}")
+async def remove_limit(ip: str):
+    if not _mikrotik:
+        raise HTTPException(status_code=503, detail="MikroTik not connected")
+    ok = await _mikrotik.remove_device_limit(ip)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to remove queue on router")
+    return {"ok": True, "ip": ip, "limit_mbps": 0}
 
 
 @app.post("/api/scan")

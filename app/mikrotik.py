@@ -19,6 +19,38 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# Prefix for all Simple Queues managed by Network Buddy
+QUEUE_PREFIX = "nb-"
+
+# Allowed limit presets in Mbps  (0 = unlimited / remove queue)
+LIMIT_PRESETS = [0, 5, 30, 500, 1000]
+
+
+def _format_limit(mbps: int) -> str:
+    """Convert Mbps integer to RouterOS max-limit string: 30 → '30M/30M'."""
+    if mbps >= 1000 and mbps % 1000 == 0:
+        g = mbps // 1000
+        return f"{g}G/{g}G"
+    return f"{mbps}M/{mbps}M"
+
+
+def _parse_mbps(limit_str: str) -> int:
+    """Parse a RouterOS rate string to Mbps integer: '30M' → 30, '1G' → 1000."""
+    try:
+        s = str(limit_str).strip().upper()
+        if not s or s in ("0", ""):
+            return 0
+        if s.endswith("G"):
+            return int(float(s[:-1]) * 1000)
+        if s.endswith("M"):
+            return int(float(s[:-1]))
+        if s.endswith("K"):
+            return max(1, int(float(s[:-1]) // 1000))
+        return int(s) // 1_000_000
+    except Exception:
+        return 0
+
+
 # ---------------------------------------------------------------------------
 # Low-level REST client
 # ---------------------------------------------------------------------------
@@ -75,6 +107,29 @@ class RouterOSClient:
             logger.warning("RouterOS PATCH %s failed: %s", path, exc)
             return False
 
+    async def put(self, path: str, body: dict) -> Optional[dict]:
+        """Create a new resource (PUT)."""
+        client = await self._client()
+        url = f"{self._base}/{path.lstrip('/')}"
+        try:
+            r = await client.put(url, json=body)
+            r.raise_for_status()
+            return r.json() if r.content else {}
+        except Exception as exc:
+            logger.warning("RouterOS PUT %s failed: %s", path, exc)
+            return None
+
+    async def delete(self, path: str) -> bool:
+        """Delete a resource (DELETE)."""
+        client = await self._client()
+        url = f"{self._base}/{path.lstrip('/')}"
+        try:
+            r = await client.delete(url)
+            return r.status_code in (200, 204)
+        except Exception as exc:
+            logger.warning("RouterOS DELETE %s failed: %s", path, exc)
+            return False
+
     async def ping(self) -> bool:
         result = await self.get("/system/identity")
         return bool(result)
@@ -122,6 +177,7 @@ class MikroTikMonitor:
         self._router_ports: List[Dict] = []
         self._switch_ports: List[Dict] = []
         self._device_rates: Dict[str, Dict[str, float]] = {}  # ip → {up, dl}
+        self._limits: Dict[str, int] = {}                     # ip → Mbps (0=∞)
 
         # ── Accounting state ────────────────────────────────────────────
         self._accounting_ok = False
@@ -164,7 +220,10 @@ class MikroTikMonitor:
     async def _device_loop(self):
         while True:
             try:
-                await self._refresh_devices()
+                await asyncio.gather(
+                    self._refresh_devices(),
+                    self._refresh_limits(),
+                )
             except Exception as exc:
                 logger.error("Device loop error: %s", exc)
             await asyncio.sleep(self.DEVICE_POLL)
@@ -345,6 +404,84 @@ class MikroTikMonitor:
             })
 
         return ports
+
+    # ------------------------------------------------------------------
+    # Simple Queue / bandwidth limiting
+    # ------------------------------------------------------------------
+
+    async def _refresh_limits(self):
+        """Sync _limits cache from all nb-* Simple Queues on the router."""
+        queues = await self.router.get("/queue/simple")
+        limits: Dict[str, int] = {}
+        for q in queues:
+            name = q.get("name", "")
+            if not name.startswith(QUEUE_PREFIX):
+                continue
+            ip = name[len(QUEUE_PREFIX):]
+            # max-limit format: "upload/download" — we use the download figure
+            raw = q.get("max-limit", "0/0")
+            dl_part = raw.split("/")[-1] if "/" in raw else raw
+            limits[ip] = _parse_mbps(dl_part)
+        self._limits = limits
+
+    async def _find_queue(self, ip: str) -> Optional[Dict]:
+        """Return the nb-{ip} Simple Queue object, or None."""
+        target_name = f"{QUEUE_PREFIX}{ip}"
+        queues = await self.router.get("/queue/simple")
+        for q in queues:
+            if q.get("name") == target_name:
+                return q
+        return None
+
+    async def set_device_limit(self, ip: str, limit_mbps: int) -> bool:
+        """
+        Apply a Simple Queue rate-limit to the given IP.
+        limit_mbps = 0  →  remove the queue (unlimited).
+        Returns True on success.
+        """
+        if limit_mbps == 0:
+            return await self.remove_device_limit(ip)
+
+        limit_str = _format_limit(limit_mbps)
+        existing = await self._find_queue(ip)
+
+        if existing:
+            qid = existing[".id"]
+            ok = await self.router.patch(
+                f"/queue/simple/{qid}",
+                {"max-limit": limit_str},
+            )
+        else:
+            result = await self.router.put(
+                "/queue/simple",
+                {
+                    "name":      f"{QUEUE_PREFIX}{ip}",
+                    "target":    f"{ip}/32",
+                    "max-limit": limit_str,
+                },
+            )
+            ok = result is not None
+
+        if ok:
+            self._limits[ip] = limit_mbps
+        return bool(ok)
+
+    async def remove_device_limit(self, ip: str) -> bool:
+        """Remove the Simple Queue for the given IP (restore unlimited)."""
+        existing = await self._find_queue(ip)
+        if not existing:
+            self._limits.pop(ip, None)
+            return True
+
+        qid = existing[".id"]
+        ok = await self.router.delete(f"/queue/simple/{qid}")
+        if ok:
+            self._limits.pop(ip, None)
+        return ok
+
+    def get_device_limits(self) -> Dict[str, int]:
+        """Return {ip: limit_mbps} for all active queues. 0 = unlimited."""
+        return dict(self._limits)
 
     # ------------------------------------------------------------------
     # Public getters (called by main.py)

@@ -115,8 +115,77 @@ function methodBadge(method) {
   return `<span class="method-badge ${cls}">${label}</span>`;
 }
 
+// ─── Throttle / limit controls ───────────────────────────────────────────────
+
+const LIMIT_PRESETS = [
+  { label: 'Unlimited', value: 0 },
+  { label: '5 Mbps',    value: 5 },
+  { label: '30 Mbps',   value: 30 },
+  { label: '500 Mbps',  value: 500 },
+  { label: '1 Gbps',    value: 1000 },
+];
+
+// Track pending API calls so we don't double-fire
+const _pendingLimits = new Set();
+
+async function applyLimit(ip, limitMbps, selectEl) {
+  if (_pendingLimits.has(ip)) return;
+  _pendingLimits.add(ip);
+  selectEl.disabled = true;
+
+  try {
+    const res = await fetch(`/api/limits/${encodeURIComponent(ip)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit_mbps: limitMbps }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error('Limit error:', err.detail || res.statusText);
+      // Revert select to previous value
+      selectEl.value = selectEl.dataset.confirmed || '0';
+    } else {
+      selectEl.dataset.confirmed = String(limitMbps);
+    }
+  } catch (e) {
+    console.error('Limit request failed:', e);
+    selectEl.value = selectEl.dataset.confirmed || '0';
+  } finally {
+    selectEl.disabled = false;
+    _pendingLimits.delete(ip);
+  }
+}
+
+function makeLimitSelect(ip, currentLimitMbps) {
+  const sel = document.createElement('select');
+  sel.className = 'limit-select';
+  sel.dataset.confirmed = String(currentLimitMbps);
+
+  for (const preset of LIMIT_PRESETS) {
+    const opt = document.createElement('option');
+    opt.value = preset.value;
+    opt.textContent = preset.label;
+    if (preset.value === currentLimitMbps) opt.selected = true;
+    sel.appendChild(opt);
+  }
+
+  const updateClass = () => {
+    sel.classList.toggle('is-limited', Number(sel.value) !== 0);
+  };
+  updateClass();
+
+  sel.addEventListener('change', () => {
+    applyLimit(ip, Number(sel.value), sel);
+    updateClass();
+  });
+  return sel;
+}
+
 // ─── Device table ─────────────────────────────────────────────────────────────
-function renderDevices(devices) {
+function renderDevices(devices, limits, isMikrotik) {
+  // Show/hide Throttle column header
+  $('th-throttle').style.display = isMikrotik ? '' : 'none';
+
   const tbody = $('device-tbody');
   tbody.innerHTML = '';
 
@@ -124,7 +193,7 @@ function renderDevices(devices) {
     const row = tbody.insertRow();
     row.className = 'empty-row';
     const cell = row.insertCell();
-    cell.colSpan = 7;
+    cell.colSpan = isMikrotik ? 8 : 7;
     cell.textContent = 'No devices found. Try scanning again.';
     return;
   }
@@ -160,9 +229,16 @@ function renderDevices(devices) {
     row.appendChild(bwCell(dev.download_bps || 0, 'dl'));
     row.appendChild(bwCell(dev.upload_bps   || 0, 'ul'));
 
-    // Source
+    // Scan method
     const methodCell = row.insertCell();
     methodCell.innerHTML = methodBadge(dev.scan_method);
+
+    // Throttle (MikroTik only)
+    if (isMikrotik) {
+      const tdLimit = row.insertCell();
+      const currentLimit = (limits && limits[dev.ip]) ? limits[dev.ip] : 0;
+      tdLimit.appendChild(makeLimitSelect(dev.ip, currentLimit));
+    }
   }
 }
 
@@ -251,7 +327,7 @@ function handleData(data) {
   ulHistory.shift();
   chart.update('none');
 
-  renderDevices(data.devices || []);
+  renderDevices(data.devices || [], data.limits || {}, data.source === 'mikrotik');
   renderPortPanels(data.ports);
 }
 
