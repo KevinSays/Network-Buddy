@@ -229,9 +229,126 @@ tbody td {
   text-transform: uppercase;
   letter-spacing: .4px;
 }
-.method-nmap      { background: rgba(251,191,36,.15); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
-.method-arp       { background: rgba(59,130,246,.15); color: var(--accent); border: 1px solid rgba(59,130,246,.3); }
-.method-arp_cache { background: rgba(100,116,139,.15); color: var(--muted); border: 1px solid rgba(100,116,139,.3); }
+.method-nmap        { background: rgba(251,191,36,.15); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
+.method-arp         { background: rgba(59,130,246,.15); color: var(--accent); border: 1px solid rgba(59,130,246,.3); }
+.method-arp_cache   { background: rgba(100,116,139,.15); color: var(--muted); border: 1px solid rgba(100,116,139,.3); }
+.method-mikrotik_api{ background: rgba(34,211,238,.15); color: var(--accent2); border: 1px solid rgba(34,211,238,.3); }
+
+/* ─── Hardware port panel ──────────────────────────────────────────── */
+.ports-section {
+  padding: 0 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.device-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 22px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.panel-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent2);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.panel-sub {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+.port-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ─── Individual port card ─────────────────────────────────────────── */
+.port-card {
+  position: relative;
+  width: 80px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 8px 8px;
+  text-align: center;
+  transition: border-color .2s, background .2s;
+  cursor: default;
+}
+
+.port-card.port-up {
+  border-color: rgba(52,211,153,.35);
+}
+
+.port-card.port-up:hover {
+  background: rgba(52,211,153,.05);
+  border-color: rgba(52,211,153,.6);
+}
+
+.port-led {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-bottom: 6px;
+}
+
+.port-card.port-up   .port-led { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.port-card.port-down .port-led { background: var(--muted); }
+
+.port-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.port-comment {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.port-bw {
+  margin-top: 6px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.port-bw-dl { color: var(--accent2); }
+.port-bw-ul { color: var(--accent); }
 
 /* ─── Empty row ────────────────────────────────────────────────────── */
 .empty-row td {

@@ -1,12 +1,17 @@
 """
 Network Buddy — FastAPI backend.
 
+Data source priority:
+  1. MikroTik RouterOS REST API  (if reachable — authoritative)
+  2. Local ARP / nmap scan + psutil bandwidth  (fallback)
+
 Endpoints:
-  GET  /api/devices        — current device list with bandwidth
-  GET  /api/stats          — interface-level totals
-  POST /api/scan           — trigger an immediate re-scan
-  WS   /ws                 — real-time push every 2 s
-  GET  /                   — serves the dashboard SPA
+  GET  /api/devices   — device list with per-device bandwidth
+  GET  /api/ports     — router + switch port stats
+  GET  /api/stats     — interface totals + meta
+  POST /api/scan      — trigger an immediate re-scan / refresh
+  WS   /ws            — real-time push every 2 s
+  GET  /              — dashboard SPA
 """
 
 import asyncio
@@ -14,10 +19,9 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .scanner import scan_network
@@ -29,56 +33,93 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SCAN_INTERVAL = 30   # seconds between automatic re-scans
+SCAN_INTERVAL = 30   # seconds between local re-scans (fallback mode)
 PUSH_INTERVAL = 2    # seconds between WebSocket pushes
 
-app = FastAPI(title="Network Buddy", version="1.0.0")
+app = FastAPI(title="Network Buddy", version="1.1.0")
 
 # ---------------------------------------------------------------------------
 # Shared state
 # ---------------------------------------------------------------------------
 
-_devices: List[dict] = []
+_devices: List[dict] = []        # used only when MikroTik is unavailable
 _last_scan: float = 0.0
 _scan_lock = asyncio.Lock()
-_bw = BandwidthMonitor()
+
+_bw = BandwidthMonitor()          # always running (fallback + local iface totals)
+
+_mikrotik = None                  # MikroTikMonitor instance, or None
 _clients: List[WebSocket] = []
 
-
 # ---------------------------------------------------------------------------
-# Lifecycle
+# App lifecycle
 # ---------------------------------------------------------------------------
 
 @app.on_event("startup")
 async def on_startup():
+    global _mikrotik
+
+    # Always start local bandwidth monitor (used as fallback)
     _bw.start()
-    asyncio.create_task(_periodic_scan())
+
+    # Attempt to connect to MikroTik
+    try:
+        import sys, os
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from settings import settings
+        from .mikrotik import MikroTikMonitor
+
+        monitor = MikroTikMonitor(settings.router, settings.switch)
+        reachable = await monitor.router.ping()
+
+        if reachable:
+            await monitor.start()
+            _mikrotik = monitor
+            logger.info(
+                "MikroTik connected at %s — using RouterOS API as primary source",
+                settings.router.host,
+            )
+        else:
+            await monitor.close()
+            logger.warning(
+                "MikroTik at %s is unreachable — falling back to local scan",
+                settings.router.host,
+            )
+    except Exception as exc:
+        logger.warning("MikroTik init failed (%s) — using local scan", exc)
+
+    asyncio.create_task(_local_scan_loop())
     asyncio.create_task(_push_loop())
 
 
 @app.on_event("shutdown")
 async def on_shutdown():
     _bw.stop()
+    if _mikrotik:
+        await _mikrotik.close()
 
 
 # ---------------------------------------------------------------------------
 # Background tasks
 # ---------------------------------------------------------------------------
 
-async def _do_scan():
+async def _local_scan_loop():
+    """Runs the local ARP/nmap scan.  In MikroTik mode, runs once at startup
+    then sits idle (MikroTik provides device data instead)."""
+    while True:
+        if _mikrotik is None:
+            await _do_local_scan()
+        await asyncio.sleep(SCAN_INTERVAL)
+
+
+async def _do_local_scan():
     global _devices, _last_scan
     async with _scan_lock:
-        logger.info("Starting network scan…")
+        logger.info("Starting local network scan…")
         loop = asyncio.get_event_loop()
         _devices = await loop.run_in_executor(None, scan_network)
         _last_scan = time.time()
-        logger.info("Scan complete — %d device(s) found", len(_devices))
-
-
-async def _periodic_scan():
-    while True:
-        await _do_scan()
-        await asyncio.sleep(SCAN_INTERVAL)
+        logger.info("Local scan complete — %d device(s)", len(_devices))
 
 
 async def _push_loop():
@@ -94,32 +135,49 @@ async def _push_loop():
             except Exception:
                 dead.append(ws)
         for ws in dead:
-            _clients.remove(ws)
+            if ws in _clients:
+                _clients.remove(ws)
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Payload builder
 # ---------------------------------------------------------------------------
 
 def _build_payload() -> dict:
-    device_rates = _bw.get_device_rates()
-    total = _bw.get_total_rates()
-
-    enriched = []
-    for dev in _devices:
-        d = dict(dev)
-        ip = d.get("ip", "")
-        rates = device_rates.get(ip, {"upload_bps": 0.0, "download_bps": 0.0})
-        d["upload_bps"] = rates["upload_bps"]
-        d["download_bps"] = rates["download_bps"]
-        enriched.append(d)
+    if _mikrotik:
+        devices = _mikrotik.get_devices()
+        wan = _mikrotik.get_wan_stats()
+        ports = {
+            "router": _mikrotik.get_router_ports(),
+            "switch": _mikrotik.get_switch_ports(),
+        }
+        total_dl = wan["download_bps"]
+        total_ul = wan["upload_bps"]
+        source = "mikrotik"
+    else:
+        device_rates = _bw.get_device_rates()
+        total = _bw.get_total_rates()
+        devices = [
+            {
+                **dev,
+                "upload_bps":   device_rates.get(dev["ip"], {}).get("upload_bps",   0.0),
+                "download_bps": device_rates.get(dev["ip"], {}).get("download_bps", 0.0),
+            }
+            for dev in _devices
+        ]
+        ports = {"router": [], "switch": []}
+        total_dl = total["download_bps"]
+        total_ul = total["upload_bps"]
+        source = "local"
 
     return {
-        "type": "update",
-        "devices": enriched,
-        "last_scan": _last_scan,
-        "total_upload_bps": total["upload_bps"],
-        "total_download_bps": total["download_bps"],
+        "type":               "update",
+        "source":             source,
+        "devices":            devices,
+        "ports":              ports,
+        "last_scan":          _last_scan,
+        "total_download_bps": total_dl,
+        "total_upload_bps":   total_ul,
     }
 
 
@@ -132,20 +190,42 @@ async def get_devices():
     return _build_payload()
 
 
+@app.get("/api/ports")
+async def get_ports():
+    if _mikrotik:
+        return {
+            "router": _mikrotik.get_router_ports(),
+            "switch": _mikrotik.get_switch_ports(),
+        }
+    return {"router": [], "switch": [], "note": "MikroTik not connected"}
+
+
 @app.get("/api/stats")
 async def get_stats():
+    iface_rates = _bw.get_interface_rates()
+    total = _bw.get_total_rates()
     return {
-        "interface_rates": _bw.get_interface_rates(),
-        "total": _bw.get_total_rates(),
-        "last_scan": _last_scan,
-        "device_count": len(_devices),
+        "source":          "mikrotik" if _mikrotik else "local",
+        "interface_rates": iface_rates,
+        "total":           total,
+        "last_scan":       _last_scan,
+        "device_count":    len(_mikrotik.get_devices()) if _mikrotik else len(_devices),
     }
 
 
 @app.post("/api/scan")
 async def trigger_scan():
-    await _do_scan()
-    return {"ok": True, "device_count": len(_devices)}
+    if _mikrotik:
+        # Force an immediate device refresh on the MikroTik monitor
+        await _mikrotik._refresh_devices()
+        await _mikrotik._refresh_router_ports()
+        if _mikrotik.switch:
+            await _mikrotik._refresh_switch_ports()
+        count = len(_mikrotik.get_devices())
+    else:
+        await _do_local_scan()
+        count = len(_devices)
+    return {"ok": True, "device_count": count}
 
 
 # ---------------------------------------------------------------------------
@@ -156,24 +236,22 @@ async def trigger_scan():
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     _clients.append(ws)
-    logger.info("WebSocket client connected (total: %d)", len(_clients))
+    logger.info("WS client connected (total: %d)", len(_clients))
     try:
-        # Send current state immediately on connect
         await ws.send_text(json.dumps(_build_payload()))
         while True:
-            # Keep the connection alive; pushes are handled by _push_loop
             await ws.receive_text()
     except WebSocketDisconnect:
         pass
     finally:
         if ws in _clients:
             _clients.remove(ws)
-        logger.info("WebSocket client disconnected (total: %d)", len(_clients))
+        logger.info("WS client disconnected (total: %d)", len(_clients))
 
 
 # ---------------------------------------------------------------------------
-# Static files (must be last — catches everything else)
+# Static files
 # ---------------------------------------------------------------------------
 
-_static_dir = Path(__file__).parent.parent / "static"
-app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
+_static = Path(__file__).parent.parent / "static"
+app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")
