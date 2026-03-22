@@ -1,0 +1,377 @@
+/* ─── Reset & base ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0b0f1a;
+  --surface:   #131928;
+  --surface2:  #1a2236;
+  --border:    #1e2d47;
+  --accent:    #3b82f6;
+  --accent2:   #22d3ee;
+  --green:     #34d399;
+  --red:       #f87171;
+  --yellow:    #fbbf24;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
+  --font:      'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ─── Header ───────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent2);
+  letter-spacing: .4px;
+}
+
+.header-right { display: flex; align-items: center; gap: 12px; }
+
+/* ─── WS status badge ──────────────────────────────────────────────── */
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.badge-online  { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid rgba(52,211,153,.35); }
+.badge-offline { background: rgba(248,113,113,.15); color: var(--red);   border: 1px solid rgba(248,113,113,.35); }
+
+/* ─── Scan button ──────────────────────────────────────────────────── */
+.btn-scan {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+}
+.btn-scan:hover  { background: #2563eb; }
+.btn-scan:active { transform: scale(.97); }
+.btn-scan:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ─── Summary bar ──────────────────────────────────────────────────── */
+.summary-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 20px 28px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 22px;
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--accent2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Section titles ───────────────────────────────────────────────── */
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* ─── Chart ────────────────────────────────────────────────────────── */
+.chart-section {
+  padding: 0 28px 24px;
+}
+
+.chart-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  height: 220px;
+}
+
+/* ─── Device table ─────────────────────────────────────────────────── */
+.devices-section {
+  padding: 0 28px 40px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface2); }
+
+tbody td {
+  padding: 13px 16px;
+  vertical-align: middle;
+}
+
+/* ─── Status dot ───────────────────────────────────────────────────── */
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.dot-online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot-offline { background: var(--muted); }
+
+/* ─── Device name / IP ─────────────────────────────────────────────── */
+.device-name { font-weight: 600; color: var(--text); }
+.device-ip   { font-size: 12px; color: var(--muted); font-family: monospace; margin-top: 2px; }
+
+/* ─── MAC ──────────────────────────────────────────────────────────── */
+.mac { font-family: monospace; font-size: 12px; color: var(--muted); }
+
+/* ─── Bandwidth bars ───────────────────────────────────────────────── */
+.bw-cell { min-width: 130px; }
+
+.bw-label {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 4px;
+}
+
+.bw-bar-bg {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bw-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .5s ease;
+  min-width: 2px;
+}
+
+.bw-bar-fill.dl { background: var(--accent2); }
+.bw-bar-fill.ul { background: var(--accent); }
+
+/* ─── Scan method badge ────────────────────────────────────────────── */
+.method-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.method-nmap        { background: rgba(251,191,36,.15); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
+.method-arp         { background: rgba(59,130,246,.15); color: var(--accent); border: 1px solid rgba(59,130,246,.3); }
+.method-arp_cache   { background: rgba(100,116,139,.15); color: var(--muted); border: 1px solid rgba(100,116,139,.3); }
+.method-mikrotik_api{ background: rgba(34,211,238,.15); color: var(--accent2); border: 1px solid rgba(34,211,238,.3); }
+
+/* ─── Hardware port panel ──────────────────────────────────────────── */
+.ports-section {
+  padding: 0 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.device-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 22px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.panel-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent2);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.panel-sub {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+.port-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ─── Individual port card ─────────────────────────────────────────── */
+.port-card {
+  position: relative;
+  width: 80px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 8px 8px;
+  text-align: center;
+  transition: border-color .2s, background .2s;
+  cursor: default;
+}
+
+.port-card.port-up {
+  border-color: rgba(52,211,153,.35);
+}
+
+.port-card.port-up:hover {
+  background: rgba(52,211,153,.05);
+  border-color: rgba(52,211,153,.6);
+}
+
+.port-led {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-bottom: 6px;
+}
+
+.port-card.port-up   .port-led { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.port-card.port-down .port-led { background: var(--muted); }
+
+.port-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.port-comment {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.port-bw {
+  margin-top: 6px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.port-bw-dl { color: var(--accent2); }
+.port-bw-ul { color: var(--accent); }
+
+/* ─── Empty row ────────────────────────────────────────────────────── */
+.empty-row td {
+  text-align: center;
+  color: var(--muted);
+  padding: 36px;
+  font-style: italic;
+}
+
+/* ─── Footer ───────────────────────────────────────────────────────── */
+footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 16px 28px 28px;
+}
+
+/* ─── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .summary-bar { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .summary-bar { grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+  .chart-section, .devices-section { padding-left: 12px; padding-right: 12px; }
+  header { padding: 12px 16px; }
+}

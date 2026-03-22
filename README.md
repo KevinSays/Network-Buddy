@@ -1,2 +1,125 @@
-# Network-Buddy
-Little Home Network project 
+# Network Buddy
+
+Home network scanner and real-time bandwidth monitor with a web dashboard.
+When a MikroTik router is present it uses the RouterOS REST API for authoritative
+device names, exact per-device bandwidth, and per-port traffic — no packet
+sniffing required. Falls back to local ARP/nmap scanning if the router is
+unreachable.
+
+## Features
+
+- Discovers all devices via RouterOS DHCP leases + ARP (or local ARP/nmap)
+- Real-time **per-device** upload / download rates via RouterOS IP Accounting
+- **Per-port traffic** panel for the RB5009 router and CRS310 switch
+- WAN throughput chart (2-minute rolling window)
+- Live updates via WebSocket every 2 s; auto-rescan every 30 s
+- Graceful fallback: works without MikroTik (local scan + psutil)
+
+## MikroTik Setup  *(required for full features)*
+
+### 1 — Enable the REST API on the router
+
+```
+/ip service enable www-ssl
+/ip service set www-ssl port=443
+```
+
+### 2 — Create a read/write API user (recommended over using `admin`)
+
+```
+/user group add name=netbuddy policy=read,write,api,!local,!telnet,!ssh,!ftp,!reboot,!policy,!test,!winbox,!password,!web,!sniff,!sensitive,!romon
+/user add name=netbuddy group=netbuddy password=STRONG_PASSWORD
+```
+
+### 3 — Enable IP Accounting (for per-device rates)
+
+Network Buddy enables this automatically via the API on startup. You can also
+do it manually:
+
+```
+/ip accounting set enabled=yes account-local-traffic=no
+```
+
+### 4 — Repeat for the CRS310 switch
+
+Same steps — REST API, a dedicated user, and note the switch management IP.
+
+## Quick Start
+
+```bash
+# 1. Copy and edit credentials
+cp .env.example .env
+# Edit .env — set ROUTER_PASS, SWITCH_HOST, SWITCH_PASS
+
+# 2. Run
+bash run.sh
+```
+
+Open **http://localhost:8000**.
+To access from any device on your network: `http://<this-machine-IP>:8000`
+
+## Manual Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python run.py
+```
+
+## Configuration (`.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ROUTER_HOST` | `192.168.4.1` | RB5009 IP |
+| `ROUTER_USER` | `admin` | RouterOS username |
+| `ROUTER_PASS` | *(empty)* | RouterOS password |
+| `SWITCH_HOST` | *(empty)* | CRS310 IP — leave blank to skip |
+| `SWITCH_USER` | `admin` | Switch username |
+| `SWITCH_PASS` | *(empty)* | Switch password |
+
+## Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `fastapi` + `uvicorn` | Web server & WebSocket |
+| `httpx` | Async HTTP for RouterOS REST API |
+| `scapy` | Fallback ARP scanning & packet capture |
+| `psutil` | Fallback interface bandwidth stats |
+| `python-nmap` | Fallback enhanced scanning |
+| `python-dotenv` | Loads `.env` credentials |
+
+## Data source priority
+
+```
+MikroTik RouterOS REST API  ←── used when router is reachable
+   • DHCP leases  → authoritative hostnames
+   • ARP table    → IP / MAC mapping
+   • IP Accounting → exact per-device upload / download rates
+   • /interface   → per-port traffic on router and switch
+
+Local fallback  ←── when MikroTik is unreachable
+   • nmap → scapy ARP → /proc/net/arp
+   • psutil interface counters (total only)
+   • scapy packet sniffer (per-device, needs root)
+```
+
+## Project Layout
+
+```
+Network-Buddy/
+├── app/
+│   ├── main.py        # FastAPI app — orchestrates data sources
+│   ├── mikrotik.py    # RouterOS REST client + monitor
+│   ├── scanner.py     # Local device discovery (fallback)
+│   └── bandwidth.py   # Local bandwidth monitor (fallback)
+├── static/
+│   ├── index.html     # Dashboard
+│   ├── style.css      # Dark theme
+│   └── app.js         # WebSocket client, charts, port panel
+├── settings.py        # Config (reads .env)
+├── run.py             # Entry point
+├── run.sh             # Convenience start script
+├── .env.example       # Credential template
+└── requirements.txt
+```
