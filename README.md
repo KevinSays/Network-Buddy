@@ -44,6 +44,42 @@ do it manually:
 
 Same steps — REST API, a dedicated user, and note the switch management IP.
 
+## Bandwidth Throttling
+
+When RouterOS is the active data source a **Throttle** column appears in the device
+table. Use the dropdown to instantly cap any device's upload and download speed.
+
+### Preset limits
+
+| Option    | RouterOS queue value |
+|-----------|----------------------|
+| Unlimited | queue removed        |
+| 5 Mbps    | `5M/5M`              |
+| 30 Mbps   | `30M/30M`            |
+| 500 Mbps  | `500M/500M`          |
+| 1 Gbps    | `1G/1G`              |
+
+Limits apply symmetrically to upload and download.
+
+### How it works
+
+Network Buddy creates a RouterOS **Simple Queue** named `nb-<ip>` (e.g.
+`nb-192.168.4.42`) for each throttled device. You can see and edit these in Winbox
+under **Queues → Simple Queues**. Setting a device back to *Unlimited* deletes the
+queue entirely.
+
+Limits persist on the router — they survive an app restart and remain in effect even
+if Network Buddy is not running. Limits set or changed outside the app (e.g. in
+Winbox) are reflected in the dashboard within 30 s.
+
+### REST API
+
+| Method | Endpoint | Body | Action |
+|--------|----------|------|--------|
+| `GET` | `/api/limits` | — | List all active limits `{ip: mbps}` |
+| `POST` | `/api/limits/{ip}` | `{"limit_mbps": 30}` | Set limit (0 = unlimited) |
+| `DELETE` | `/api/limits/{ip}` | — | Remove limit (unlimited) |
+
 ## Quick Start
 
 ```bash
