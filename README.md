@@ -80,28 +80,46 @@ Winbox) are reflected in the dashboard within 30 s.
 | `POST` | `/api/limits/{ip}` | `{"limit_mbps": 30}` | Set limit (0 = unlimited) |
 | `DELETE` | `/api/limits/{ip}` | — | Remove limit (unlimited) |
 
-## Quick Start
+## Install as a service  *(recommended)*
+
+One command installs MHS as a systemd service that starts on boot and restarts
+automatically on failure.
+
+```bash
+sudo bash install.sh
+```
+
+The installer will:
+1. Create a Python virtualenv and install all dependencies
+2. Prompt for your MikroTik credentials and write `.env`
+3. Register and start the `mhs` systemd service
+
+**Useful commands after install:**
+
+```bash
+systemctl status mhs          # check if it's running
+journalctl -fu mhs            # tail live logs
+sudo systemctl restart mhs    # apply .env changes
+sudo bash uninstall.sh        # remove the service
+```
+
+Dashboard is available at **`http://<this-machine-IP>:8000`** from any device on
+your network.
+
+## Quick Start  *(dev / one-off)*
 
 ```bash
 # 1. Copy and edit credentials
 cp .env.example .env
 # Edit .env — set ROUTER_PASS, SWITCH_HOST, SWITCH_PASS
 
-# 2. Run
+# 2. Run (foreground)
 bash run.sh
 ```
 
-Open **http://localhost:8000**.
-To access from any device on your network: `http://<this-machine-IP>:8000`
-
-## Manual Setup
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python run.py
-```
+Open **http://localhost:8000**. The process runs in the foreground and stops
+when the terminal is closed — use the service install above for persistent
+operation.
 
 ## Configuration (`.env`)
 
