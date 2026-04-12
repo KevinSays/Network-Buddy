@@ -1,5 +1,5 @@
 """
-Network Buddy — FastAPI backend.
+MHS: Mikrotik Homelab Scanner — FastAPI backend.
 
 Data source priority:
   1. MikroTik RouterOS REST API  (if reachable — authoritative)
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 SCAN_INTERVAL = 30   # seconds between local re-scans (fallback mode)
 PUSH_INTERVAL = 2    # seconds between WebSocket pushes
 
-app = FastAPI(title="Network Buddy", version="1.1.0")
+app = FastAPI(title="MHS: Mikrotik Homelab Scanner", version="1.1.0")
 
 # ---------------------------------------------------------------------------
 # Shared state

@@ -1,5 +1,5 @@
 """
-Network Buddy configuration.
+MHS: Mikrotik Homelab Scanner configuration.
 Values are read from environment variables; a .env file in the project root
 is loaded automatically if python-dotenv is installed.
 

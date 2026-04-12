@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Network Buddy — quick-start script
+# MHS: Mikrotik Homelab Scanner — quick-start script
 set -e
 
 VENV=".venv"
@@ -17,7 +17,7 @@ pip install -q -r requirements.txt
 
 echo ""
 echo "╔═══════════════════════════════════════╗"
-echo "║        Network Buddy is starting       ║"
+echo "║         MHS is starting…               ║"
 echo "╠═══════════════════════════════════════╣"
 echo "║  Dashboard → http://localhost:8000     ║"
 echo "║                                        ║"

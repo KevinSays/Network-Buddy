@@ -19,7 +19,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Prefix for all Simple Queues managed by Network Buddy
+# Prefix for all Simple Queues managed by MHS
 QUEUE_PREFIX = "nb-"
 
 # Allowed limit presets in Mbps  (0 = unlimited / remove queue)
