@@ -119,9 +119,52 @@
     </div>
   </section>
 
+  <!-- Recently disconnected devices -->
+  <section class="transient-section" id="transient-section" style="display:none">
+    <h2 class="section-title">
+      Recently Disconnected
+      <span class="section-sub">online &lt;5 min · last 24 h</span>
+    </h2>
+    <div class="table-wrap">
+      <table id="transient-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Hostname / IP</th>
+            <th>MAC Address</th>
+            <th>Vendor</th>
+            <th>First Seen</th>
+            <th>Last Seen</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="transient-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
   <footer>
     MHS: Mikrotik Homelab Scanner &nbsp;|&nbsp; data refreshes every 2 s
   </footer>
+
+  <!-- History panel (slides up from bottom on device row click) -->
+  <div id="history-panel" class="history-panel">
+    <div class="hp-header">
+      <div class="hp-device">
+        <div id="hp-name" class="hp-name">—</div>
+        <div id="hp-ip"   class="hp-ip"></div>
+      </div>
+      <div id="hp-stats" class="hp-stats"></div>
+      <button class="hp-close" onclick="closeHistory()" title="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="hp-chart-wrap">
+      <canvas id="hp-chart"></canvas>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

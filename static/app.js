@@ -62,6 +62,95 @@ const chart = new Chart(ctx, {
   },
 });
 
+// ─── History panel ───────────────────────────────────────────────────────────
+let _historyChart        = null;
+let _historyIp           = null;
+let _historyRefreshTimer = null;
+
+function openHistory(ip, label) {
+  _historyIp = ip;
+  $('hp-name').textContent = label;
+  $('hp-ip').textContent   = label !== ip ? ip : '';
+  $('hp-stats').innerHTML  = '<span class="muted-text">Loading…</span>';
+  $('history-panel').classList.add('open');
+  document.body.style.paddingBottom = '260px';
+  fetchAndRenderHistory();
+  if (_historyRefreshTimer) clearInterval(_historyRefreshTimer);
+  _historyRefreshTimer = setInterval(fetchAndRenderHistory, 30_000);
+}
+
+function closeHistory() {
+  $('history-panel').classList.remove('open');
+  document.body.style.paddingBottom = '';
+  if (_historyRefreshTimer) { clearInterval(_historyRefreshTimer); _historyRefreshTimer = null; }
+  _historyIp = null;
+  if (_historyChart) { _historyChart.destroy(); _historyChart = null; }
+}
+
+function fetchAndRenderHistory() {
+  if (!_historyIp) return;
+  const ip = _historyIp;
+  fetch(`/api/history/${encodeURIComponent(ip)}?minutes=60`)
+    .then(r => r.json())
+    .then(data => { if (ip === _historyIp) renderHistoryChart(data.samples || []); })
+    .catch(e => console.error('History fetch failed:', e));
+}
+
+function renderHistoryChart(samples) {
+  const statsEl = $('hp-stats');
+  if (samples.length === 0) {
+    statsEl.innerHTML = '<span class="muted-text">No data yet — check back in a minute.</span>';
+    if (_historyChart) { _historyChart.destroy(); _historyChart = null; }
+    return;
+  }
+  const labels = samples.map(s => new Date(s.ts * 1000).toLocaleTimeString());
+  const dlData = samples.map(s => s.download_bps);
+  const ulData = samples.map(s => s.upload_bps);
+  if (_historyChart) {
+    _historyChart.data.labels            = labels;
+    _historyChart.data.datasets[0].data  = dlData;
+    _historyChart.data.datasets[1].data  = ulData;
+    _historyChart.update('none');
+  } else {
+    _historyChart = new Chart($('hp-chart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Download', data: dlData, borderColor: '#22d3ee',
+            backgroundColor: 'rgba(34,211,238,.08)', borderWidth: 1.5,
+            pointRadius: 0, tension: 0.3, fill: true },
+          { label: 'Upload',   data: ulData, borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,.08)', borderWidth: 1.5,
+            pointRadius: 0, tension: 0.3, fill: true },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {
+          legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmtBps(c.raw)}` } },
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8, maxRotation: 0 },
+               grid: { color: 'rgba(30,45,71,.5)' } },
+          y: { min: 0,
+               ticks: { color: '#64748b', font: { size: 10 }, callback: v => fmtBps(v), maxTicksLimit: 4 },
+               grid: { color: 'rgba(30,45,71,.5)' } },
+        },
+      },
+    });
+  }
+  const peakDl = Math.max(0, ...dlData), peakUl = Math.max(0, ...ulData);
+  const avgDl  = dlData.reduce((a,b) => a+b, 0) / dlData.length;
+  const avgUl  = ulData.reduce((a,b) => a+b, 0) / ulData.length;
+  statsEl.innerHTML = `
+    <div class="hstat"><span class="hstat-label">Peak ↓</span><span class="hstat-val hstat-dl">${fmtBps(peakDl)}</span></div>
+    <div class="hstat"><span class="hstat-label">Peak ↑</span><span class="hstat-val hstat-ul">${fmtBps(peakUl)}</span></div>
+    <div class="hstat"><span class="hstat-label">Avg ↓</span> <span class="hstat-val hstat-dl">${fmtBps(avgDl)}</span></div>
+    <div class="hstat"><span class="hstat-label">Avg ↑</span> <span class="hstat-val hstat-ul">${fmtBps(avgUl)}</span></div>`;
+}
+
 // ─── Formatters ──────────────────────────────────────────────────────────────
 function fmtBps(bps) {
   if (bps >= 1e9) return (bps / 1e9).toFixed(2) + ' Gbps';
@@ -81,6 +170,14 @@ function fmtBytes(b) {
 function fmtTime(ts) {
   if (!ts) return '—';
   return new Date(ts * 1000).toLocaleTimeString();
+}
+
+function fmtDuration(seconds) {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+  if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  const h = Math.floor(m / 60), rm = m % 60;
+  return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
 }
 
 // ─── DOM helpers ─────────────────────────────────────────────────────────────
@@ -209,6 +306,12 @@ function renderDevices(devices, limits, isMikrotik) {
 
   for (const dev of devices) {
     const row = tbody.insertRow();
+    row.classList.add('device-row');
+    if (_historyIp === dev.ip) row.classList.add('row-selected');
+    row.addEventListener('click', e => {
+      if (e.target.closest('select')) return;
+      _historyIp === dev.ip ? closeHistory() : openHistory(dev.ip, dev.hostname || dev.ip);
+    });
 
     // Status
     row.insertCell().innerHTML = `<span class="dot dot-online" title="online"></span>`;
@@ -317,6 +420,33 @@ function renderSummary(data) {
   }
 }
 
+// ─── Recently disconnected devices ───────────────────────────────────────────
+function renderTransient(devices) {
+  const section = $('transient-section');
+  if (!devices || devices.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const tbody = $('transient-tbody');
+  tbody.innerHTML = '';
+
+  for (const dev of devices) {
+    const row  = tbody.insertRow();
+    const label = dev.hostname || dev.ip;
+
+    row.insertCell().innerHTML = `<span class="dot dot-ghost" title="disconnected"></span>`;
+
+    const nameCell = row.insertCell();
+    nameCell.innerHTML = `<div class="device-name">${esc(label)}</div>
+      ${dev.hostname ? `<div class="device-ip">${esc(dev.ip)}</div>` : ''}`;
+
+    row.insertCell().innerHTML = `<span class="mac">${esc(dev.mac || '—')}</span>`;
+    row.insertCell().textContent = dev.vendor || '—';
+    row.insertCell().innerHTML = `<span class="ts">${fmtTime(dev.first_seen)}</span>`;
+    row.insertCell().innerHTML = `<span class="ts">${fmtTime(dev.last_seen)}</span>`;
+    row.insertCell().innerHTML = `<span class="duration-badge">${fmtDuration(dev.duration_seconds)}</span>`;
+  }
+}
+
 // ─── Device search / filter ──────────────────────────────────────────────────
 let _lastData = null;
 
@@ -348,6 +478,7 @@ function handleData(data) {
 
   filterDevices();
   renderPortPanels(data.ports);
+  renderTransient(data.transient_devices || []);
 }
 
 // ─── XSS helper ──────────────────────────────────────────────────────────────

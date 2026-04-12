@@ -6,13 +6,15 @@ Data source priority:
   2. Local ARP / nmap scan + psutil bandwidth  (fallback)
 
 Endpoints:
-  GET  /api/devices         — device list with per-device bandwidth
-  GET  /api/device/{query}  — look up a single device by IP or MAC address
-  GET  /api/ports           — router + switch port stats
-  GET  /api/stats           — interface totals + meta
-  POST /api/scan            — trigger an immediate re-scan / refresh
-  WS   /ws                  — real-time push every 2 s
-  GET  /                    — dashboard SPA
+  GET  /api/devices             — device list with per-device bandwidth
+  GET  /api/device/{query}      — look up a single device by IP or MAC address
+  GET  /api/history/{ip}        — per-device bandwidth history (SQLite)
+  GET  /api/transient           — devices that joined then quickly disconnected
+  GET  /api/ports               — router + switch port stats
+  GET  /api/stats               — interface totals + meta
+  POST /api/scan                — trigger an immediate re-scan / refresh
+  WS   /ws                      — real-time push every 2 s
+  GET  /                        — dashboard SPA
 """
 
 import asyncio
@@ -28,6 +30,7 @@ from pydantic import BaseModel
 
 from .scanner import scan_network
 from .bandwidth import BandwidthMonitor
+from . import db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 SCAN_INTERVAL = 30   # seconds between local re-scans (fallback mode)
 PUSH_INTERVAL = 2    # seconds between WebSocket pushes
+LOG_INTERVAL  = 30   # seconds between SQLite traffic log writes
 
 app = FastAPI(title="MHS: Mikrotik Homelab Scanner", version="1.1.0")
 
@@ -53,6 +57,8 @@ _bw = BandwidthMonitor()          # always running (fallback + local iface total
 _mikrotik = None                  # MikroTikMonitor instance, or None
 _clients: List[WebSocket] = []
 
+_transient_cache: List[dict] = [] # refreshed by _logging_loop every LOG_INTERVAL s
+
 # ---------------------------------------------------------------------------
 # App lifecycle
 # ---------------------------------------------------------------------------
@@ -60,6 +66,7 @@ _clients: List[WebSocket] = []
 @app.on_event("startup")
 async def on_startup():
     global _mikrotik
+    db.init_db()
 
     # Always start local bandwidth monitor (used as fallback)
     _bw.start()
@@ -92,6 +99,7 @@ async def on_startup():
 
     asyncio.create_task(_local_scan_loop())
     asyncio.create_task(_push_loop())
+    asyncio.create_task(_logging_loop())
 
 
 @app.on_event("shutdown")
@@ -122,6 +130,38 @@ async def _do_local_scan():
         _devices = await loop.run_in_executor(None, scan_network)
         _last_scan = time.time()
         logger.info("Local scan complete — %d device(s)", len(_devices))
+
+
+async def _logging_loop():
+    """Write a traffic + session snapshot to SQLite every LOG_INTERVAL seconds."""
+    global _transient_cache
+    while True:
+        await asyncio.sleep(LOG_INTERVAL)
+        try:
+            if _mikrotik:
+                devices = _mikrotik.get_devices()
+            else:
+                rates = _bw.get_device_rates()
+                devices = [
+                    {
+                        **dev,
+                        "upload_bps":   rates.get(dev["ip"], {}).get("upload_bps",   0.0),
+                        "download_bps": rates.get(dev["ip"], {}).get("download_bps", 0.0),
+                    }
+                    for dev in _devices
+                ]
+
+            device_map  = {d["ip"]: d for d in devices}
+            current_ips = set(device_map)
+            loop = asyncio.get_running_loop()
+
+            await loop.run_in_executor(None, db.log_traffic, devices)
+            await loop.run_in_executor(None, db.update_sessions, current_ips, device_map)
+            _transient_cache = await loop.run_in_executor(
+                None, db.get_transient_devices, 24
+            )
+        except Exception as exc:
+            logger.warning("Traffic logging error: %s", exc)
 
 
 async def _push_loop():
@@ -183,6 +223,7 @@ def _build_payload() -> dict:
         "last_scan":          _last_scan,
         "total_download_bps": total_dl,
         "total_upload_bps":   total_ul,
+        "transient_devices":  _transient_cache,
     }
 
 
@@ -254,6 +295,22 @@ async def remove_limit(ip: str):
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to remove queue on router")
     return {"ok": True, "ip": ip, "limit_mbps": 0}
+
+
+@app.get("/api/history/{ip}")
+async def get_device_history(ip: str, minutes: int = 60):
+    """Return up to *minutes* minutes of bandwidth history for a device."""
+    loop = asyncio.get_running_loop()
+    samples = await loop.run_in_executor(None, db.get_history, ip, minutes)
+    return {"ip": ip, "minutes": minutes, "samples": samples}
+
+
+@app.get("/api/transient")
+async def get_transient(hours: int = 24):
+    """Return devices that joined then disconnected within 5 minutes."""
+    loop = asyncio.get_running_loop()
+    devices = await loop.run_in_executor(None, db.get_transient_devices, hours)
+    return {"hours": hours, "devices": devices}
 
 
 @app.get("/api/device/{query}")

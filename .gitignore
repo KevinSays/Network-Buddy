@@ -11,6 +11,9 @@ venv/
 dist/
 build/
 
+# Runtime database
+mhs.db
+
 # OS
 .DS_Store
 Thumbs.db
