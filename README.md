@@ -1,4 +1,4 @@
-# Network Buddy
+# MHS: Mikrotik Homelab Scanner
 
 Home network scanner and real-time bandwidth monitor with a web dashboard.
 When a MikroTik router is present it uses the RouterOS REST API for authoritative
@@ -33,7 +33,7 @@ unreachable.
 
 ### 3 — Enable IP Accounting (for per-device rates)
 
-Network Buddy enables this automatically via the API on startup. You can also
+MHS enables this automatically via the API on startup. You can also
 do it manually:
 
 ```
@@ -63,13 +63,13 @@ Limits apply symmetrically to upload and download.
 
 ### How it works
 
-Network Buddy creates a RouterOS **Simple Queue** named `nb-<ip>` (e.g.
+MHS creates a RouterOS **Simple Queue** named `nb-<ip>` (e.g.
 `nb-192.168.4.42`) for each throttled device. You can see and edit these in Winbox
 under **Queues → Simple Queues**. Setting a device back to *Unlimited* deletes the
 queue entirely.
 
 Limits persist on the router — they survive an app restart and remain in effect even
-if Network Buddy is not running. Limits set or changed outside the app (e.g. in
+if MHS is not running. Limits set or changed outside the app (e.g. in
 Winbox) are reflected in the dashboard within 30 s.
 
 ### REST API
