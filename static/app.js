@@ -317,8 +317,27 @@ function renderSummary(data) {
   }
 }
 
+// ─── Device search / filter ──────────────────────────────────────────────────
+let _lastData = null;
+
+function filterDevices() {
+  if (!_lastData) return;
+  const q = ($('device-search').value || '').trim().toLowerCase();
+  const all = _lastData.devices || [];
+  const visible = q
+    ? all.filter(d =>
+        (d.ip       || '').toLowerCase().includes(q) ||
+        (d.mac      || '').toLowerCase().includes(q) ||
+        (d.hostname || '').toLowerCase().includes(q) ||
+        (d.vendor   || '').toLowerCase().includes(q)
+      )
+    : all;
+  renderDevices(visible, _lastData.limits || {}, _lastData.source === 'mikrotik');
+}
+
 // ─── Main data handler ───────────────────────────────────────────────────────
 function handleData(data) {
+  _lastData = data;
   renderSummary(data);
 
   dlHistory.push(data.total_download_bps || 0);
@@ -327,7 +346,7 @@ function handleData(data) {
   ulHistory.shift();
   chart.update('none');
 
-  renderDevices(data.devices || [], data.limits || {}, data.source === 'mikrotik');
+  filterDevices();
   renderPortPanels(data.ports);
 }
 

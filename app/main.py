@@ -6,12 +6,13 @@ Data source priority:
   2. Local ARP / nmap scan + psutil bandwidth  (fallback)
 
 Endpoints:
-  GET  /api/devices   — device list with per-device bandwidth
-  GET  /api/ports     — router + switch port stats
-  GET  /api/stats     — interface totals + meta
-  POST /api/scan      — trigger an immediate re-scan / refresh
-  WS   /ws            — real-time push every 2 s
-  GET  /              — dashboard SPA
+  GET  /api/devices         — device list with per-device bandwidth
+  GET  /api/device/{query}  — look up a single device by IP or MAC address
+  GET  /api/ports           — router + switch port stats
+  GET  /api/stats           — interface totals + meta
+  POST /api/scan            — trigger an immediate re-scan / refresh
+  WS   /ws                  — real-time push every 2 s
+  GET  /                    — dashboard SPA
 """
 
 import asyncio
@@ -253,6 +254,18 @@ async def remove_limit(ip: str):
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to remove queue on router")
     return {"ok": True, "ip": ip, "limit_mbps": 0}
+
+
+@app.get("/api/device/{query}")
+async def lookup_device(query: str):
+    """Look up a single device by IP address or MAC address (case-insensitive)."""
+    devices = _mikrotik.get_devices() if _mikrotik else _devices
+    q = query.lower().strip()
+    for dev in devices:
+        if dev.get("ip", "").lower() == q or dev.get("mac", "").lower() == q:
+            limits = _mikrotik.get_device_limits() if _mikrotik else {}
+            return {**dev, "limit_mbps": limits.get(dev.get("ip", ""), 0)}
+    raise HTTPException(status_code=404, detail=f"No device found for '{query}'")
 
 
 @app.post("/api/scan")

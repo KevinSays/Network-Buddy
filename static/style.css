@@ -140,6 +140,30 @@ header {
   padding: 0 28px 40px;
 }
 
+.devices-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.devices-header .section-title { margin-bottom: 0; }
+
+.search-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font);
+  padding: 6px 12px;
+  width: 280px;
+  outline: none;
+  transition: border-color .15s;
+}
+.search-input::placeholder { color: var(--muted); }
+.search-input:focus { border-color: var(--accent); }
+
 .table-wrap {
   overflow-x: auto;
   background: var(--surface);

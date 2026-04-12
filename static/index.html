@@ -92,7 +92,12 @@
 
   <!-- Device table -->
   <section class="devices-section">
-    <h2 class="section-title">Connected Devices</h2>
+    <div class="devices-header">
+      <h2 class="section-title">Connected Devices</h2>
+      <input type="search" id="device-search" class="search-input"
+             placeholder="Filter by IP, MAC, hostname or vendor…"
+             oninput="filterDevices()" autocomplete="off">
+    </div>
     <div class="table-wrap">
       <table id="device-table">
         <thead>

@@ -76,9 +76,31 @@ Winbox) are reflected in the dashboard within 30 s.
 
 | Method | Endpoint | Body | Action |
 |--------|----------|------|--------|
+| `GET` | `/api/device/{query}` | — | Look up a device by IP or MAC (404 if not found) |
 | `GET` | `/api/limits` | — | List all active limits `{ip: mbps}` |
 | `POST` | `/api/limits/{ip}` | `{"limit_mbps": 30}` | Set limit (0 = unlimited) |
 | `DELETE` | `/api/limits/{ip}` | — | Remove limit (unlimited) |
+
+## System Requirements
+
+| Requirement | Minimum | Notes |
+|-------------|---------|-------|
+| OS | Linux | Uses `/proc/net/arp` and systemd; macOS/Windows not supported |
+| Python | 3.9+ | Checked by the installer |
+| `nmap` binary | any recent | Required for fallback LAN scan — not needed if a MikroTik router is configured |
+| `ping` (`iputils-ping`) | — | Used by fallback ping sweep; pre-installed on most distros |
+| systemd | — | Required for `install.sh` service setup; not needed for `run.sh` dev mode |
+
+**Install system packages (Debian / Ubuntu / Raspberry Pi OS):**
+
+```bash
+sudo apt install python3 python3-venv nmap
+```
+
+**Permissions:** The installer grants the service `CAP_NET_RAW` and `CAP_NET_ADMIN` so
+nmap and scapy can do raw-socket scanning without running as root.
+
+---
 
 ## Install as a service  *(recommended)*
 

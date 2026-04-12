@@ -40,6 +40,15 @@ if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)'; t
   exit 1
 fi
 
+# ── nmap check (optional — only needed for fallback LAN scan) ─────────────────
+if ! command -v nmap &>/dev/null; then
+  echo ""
+  echo "warning: nmap not found. Fallback LAN scanning will be limited to the"
+  echo "         kernel ARP cache. Install it with:  sudo apt install nmap"
+  echo "         (Not required if you have a MikroTik router configured.)"
+  echo ""
+fi
+
 # ── Virtualenv + dependencies ─────────────────────────────────────────────────
 echo "Setting up Python environment…"
 python3 -m venv "${VENV_DIR}"
