@@ -57,6 +57,26 @@ python3 -m venv "${VENV_DIR}"
 chown -R "${RUN_AS}:" "${VENV_DIR}"
 echo "Dependencies installed."
 
+# ── Bundle Chart.js locally (avoids CDN dependency) ──────────────────────────
+CHARTJS_FILE="${INSTALL_DIR}/static/chart.umd.min.js"
+CHARTJS_URL="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+if [[ ! -f "${CHARTJS_FILE}" ]]; then
+  echo "Downloading Chart.js 4.4.0…"
+  if command -v curl &>/dev/null; then
+    curl -fsSL "${CHARTJS_URL}" -o "${CHARTJS_FILE}"
+  elif command -v wget &>/dev/null; then
+    wget -qO "${CHARTJS_FILE}" "${CHARTJS_URL}"
+  else
+    echo "warning: curl/wget not found — Chart.js not downloaded. Install curl and re-run."
+  fi
+  if [[ -f "${CHARTJS_FILE}" ]]; then
+    chown "${RUN_AS}:" "${CHARTJS_FILE}"
+    echo "Chart.js bundled at ${CHARTJS_FILE}"
+  fi
+else
+  echo "Chart.js already present — skipping."
+fi
+
 # ── Credentials (.env) ────────────────────────────────────────────────────────
 if [[ -f "${INSTALL_DIR}/.env" ]]; then
   echo ""
