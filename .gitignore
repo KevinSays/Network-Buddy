@@ -15,7 +15,8 @@ build/
 mhs.db
 
 # Bundled third-party JS (downloaded by install.sh — not tracked in git)
-static/chart.umd.min.js
+static/chart.umd.js
+node_modules/
 
 # OS
 .DS_Store
