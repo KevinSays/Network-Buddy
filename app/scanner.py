@@ -29,11 +29,16 @@ def get_local_network() -> str:
     return str(network)
 
 
-def resolve_hostname(ip: str) -> str:
+def resolve_hostname(ip: str, timeout: float = 1.0) -> str:
+    """Resolve IP to hostname with a bounded timeout to avoid hanging scans."""
+    old = socket.getdefaulttimeout()
     try:
+        socket.setdefaulttimeout(timeout)
         return socket.gethostbyaddr(ip)[0]
     except Exception:
         return ""
+    finally:
+        socket.setdefaulttimeout(old)
 
 
 # ---------------------------------------------------------------------------
@@ -156,20 +161,29 @@ def proc_arp_scan() -> List[Dict]:
 
 
 def _ping_sweep(network: str):
-    """Quick ping sweep to populate the ARP cache (best-effort)."""
+    """Quick ping sweep to populate the ARP cache (best-effort).
+
+    Launches pings in batches of 32 to avoid exhausting file descriptors.
+    Each process is given a 3-second wait timeout before being killed.
+    """
+    BATCH = 32
     try:
-        net = ipaddress.IPv4Network(network, strict=False)
+        net   = ipaddress.IPv4Network(network, strict=False)
         hosts = list(net.hosts())[:254]
-        procs = [
-            subprocess.Popen(
-                ["ping", "-c1", "-W1", str(h)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            for h in hosts
-        ]
-        for p in procs:
-            p.wait()
+        for i in range(0, len(hosts), BATCH):
+            procs = [
+                subprocess.Popen(
+                    ["ping", "-c1", "-W1", str(h)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                for h in hosts[i : i + BATCH]
+            ]
+            for p in procs:
+                try:
+                    p.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    p.kill()
     except Exception as exc:
         logger.debug("ping sweep error: %s", exc)
 

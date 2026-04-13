@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MHS: Mikrotik Homelab Scanner</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Chart.js is bundled locally by install.sh — no CDN dependency -->
+  <script src="chart.umd.js"></script>
 </head>
 <body>
   <!-- Header -->
@@ -51,7 +52,15 @@
 
   <!-- Throughput chart -->
   <section class="chart-section">
-    <h2 class="section-title">Network Throughput</h2>
+    <div class="chart-title-row">
+      <h2 class="section-title">Network Throughput</h2>
+      <button class="wan-hist-btn" onclick="openHistory('_wan_', 'WAN Traffic')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        WAN History
+      </button>
+    </div>
     <div class="chart-wrap">
       <canvas id="throughput-chart"></canvas>
     </div>
@@ -92,24 +101,55 @@
 
   <!-- Device table -->
   <section class="devices-section">
-    <h2 class="section-title">Connected Devices</h2>
+    <div class="devices-header">
+      <h2 class="section-title">Connected Devices</h2>
+      <input type="search" id="device-search" class="search-input"
+             placeholder="Filter by IP, MAC, hostname or vendor…"
+             oninput="filterDevices()" autocomplete="off">
+    </div>
     <div class="table-wrap">
       <table id="device-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th data-sort="hostname" onclick="sortBy('hostname')">Hostname / IP</th>
+            <th data-sort="mac" onclick="sortBy('mac')">MAC Address</th>
+            <th data-sort="vendor" onclick="sortBy('vendor')">Vendor</th>
+            <th data-sort="download_bps" onclick="sortBy('download_bps')">Download</th>
+            <th data-sort="upload_bps" onclick="sortBy('upload_bps')">Upload</th>
+            <th>Scan Method</th>
+            <th data-sort="first_seen" onclick="sortBy('first_seen')">First Seen</th>
+            <th data-sort="last_seen" onclick="sortBy('last_seen')">Last Seen</th>
+            <th id="th-throttle" style="display:none">Throttle</th>
+          </tr>
+        </thead>
+        <tbody id="device-tbody">
+          <tr class="empty-row"><td colspan="10">Waiting for first scan…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Recently disconnected devices -->
+  <section class="transient-section" id="transient-section" style="display:none">
+    <h2 class="section-title">
+      Recently Disconnected
+      <span class="section-sub">online &lt;5 min · last 24 h</span>
+    </h2>
+    <div class="table-wrap">
+      <table id="transient-table">
         <thead>
           <tr>
             <th>Status</th>
             <th>Hostname / IP</th>
             <th>MAC Address</th>
             <th>Vendor</th>
-            <th>Download</th>
-            <th>Upload</th>
-            <th>Scan Method</th>
-            <th id="th-throttle" style="display:none">Throttle</th>
+            <th>First Seen</th>
+            <th>Last Seen</th>
+            <th>Duration</th>
           </tr>
         </thead>
-        <tbody id="device-tbody">
-          <tr class="empty-row"><td colspan="8">Waiting for first scan…</td></tr>
-        </tbody>
+        <tbody id="transient-tbody"></tbody>
       </table>
     </div>
   </section>
@@ -117,6 +157,39 @@
   <footer>
     MHS: Mikrotik Homelab Scanner &nbsp;|&nbsp; data refreshes every 2 s
   </footer>
+
+  <!-- History panel (slides up from bottom on device row click) -->
+  <div id="history-panel" class="history-panel">
+    <div class="hp-header">
+      <div class="hp-device">
+        <div id="hp-name" class="hp-name">—</div>
+        <div id="hp-ip"   class="hp-ip"></div>
+      </div>
+      <div class="hp-time-sel" id="hp-time-sel">
+        <button class="hp-time-btn active" data-mins="60"   onclick="setHistoryWindow(60)">1h</button>
+        <button class="hp-time-btn"        data-mins="360"  onclick="setHistoryWindow(360)">6h</button>
+        <button class="hp-time-btn"        data-mins="1440" onclick="setHistoryWindow(1440)">24h</button>
+        <button class="hp-time-btn"        data-mins="10080" onclick="setHistoryWindow(10080)">7d</button>
+      </div>
+      <div id="hp-stats" class="hp-stats"></div>
+      <a id="hp-export" class="hp-export" href="#" target="_blank" title="Download CSV">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        CSV
+      </a>
+      <button class="hp-close" onclick="closeHistory()" title="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="hp-chart-wrap">
+      <canvas id="hp-chart"></canvas>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

@@ -40,6 +40,15 @@ if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)'; t
   exit 1
 fi
 
+# ── nmap check (optional — only needed for fallback LAN scan) ─────────────────
+if ! command -v nmap &>/dev/null; then
+  echo ""
+  echo "warning: nmap not found. Fallback LAN scanning will be limited to the"
+  echo "         kernel ARP cache. Install it with:  sudo apt install nmap"
+  echo "         (Not required if you have a MikroTik router configured.)"
+  echo ""
+fi
+
 # ── Virtualenv + dependencies ─────────────────────────────────────────────────
 echo "Setting up Python environment…"
 python3 -m venv "${VENV_DIR}"
@@ -47,6 +56,28 @@ python3 -m venv "${VENV_DIR}"
 "${VENV_DIR}/bin/pip" install -q -r "${INSTALL_DIR}/requirements.txt"
 chown -R "${RUN_AS}:" "${VENV_DIR}"
 echo "Dependencies installed."
+
+# ── Bundle Chart.js locally (no CDN or npm — curl/wget only) ─────────────────
+CHARTJS_FILE="${INSTALL_DIR}/static/chart.umd.js"
+CHARTJS_URL="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"
+if [[ ! -f "${CHARTJS_FILE}" ]]; then
+  echo "Downloading Chart.js 4.4.0 (one-time, pinned version)…"
+  if command -v curl &>/dev/null; then
+    curl -fsSL "${CHARTJS_URL}" -o "${CHARTJS_FILE}"
+  elif command -v wget &>/dev/null; then
+    wget -qO "${CHARTJS_FILE}" "${CHARTJS_URL}"
+  else
+    echo "warning: curl/wget not found — Chart.js not downloaded."
+    echo "         Install curl then re-run install.sh, or manually place"
+    echo "         chart.js 4.4.0 UMD build at: ${CHARTJS_FILE}"
+  fi
+  if [[ -f "${CHARTJS_FILE}" ]]; then
+    chown "${RUN_AS}:" "${CHARTJS_FILE}"
+    echo "Chart.js bundled at ${CHARTJS_FILE}"
+  fi
+else
+  echo "Chart.js already present — skipping."
+fi
 
 # ── Credentials (.env) ────────────────────────────────────────────────────────
 if [[ -f "${INSTALL_DIR}/.env" ]]; then

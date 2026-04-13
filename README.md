@@ -76,9 +76,33 @@ Winbox) are reflected in the dashboard within 30 s.
 
 | Method | Endpoint | Body | Action |
 |--------|----------|------|--------|
+| `GET` | `/api/device/{query}` | — | Look up a device by IP or MAC (404 if not found) |
+| `GET` | `/api/history/{ip}?minutes=60` | — | Bandwidth history samples for a device |
+| `GET` | `/api/transient?hours=24` | — | Devices that joined and disconnected within 5 min |
 | `GET` | `/api/limits` | — | List all active limits `{ip: mbps}` |
 | `POST` | `/api/limits/{ip}` | `{"limit_mbps": 30}` | Set limit (0 = unlimited) |
 | `DELETE` | `/api/limits/{ip}` | — | Remove limit (unlimited) |
+
+## System Requirements
+
+| Requirement | Minimum | Notes |
+|-------------|---------|-------|
+| OS | Linux | Uses `/proc/net/arp` and systemd; macOS/Windows not supported |
+| Python | 3.9+ | Checked by the installer |
+| `nmap` binary | any recent | Required for fallback LAN scan — not needed if a MikroTik router is configured |
+| `ping` (`iputils-ping`) | — | Used by fallback ping sweep; pre-installed on most distros |
+| systemd | — | Required for `install.sh` service setup; not needed for `run.sh` dev mode |
+
+**Install system packages (Debian / Ubuntu / Raspberry Pi OS):**
+
+```bash
+sudo apt install python3 python3-venv nmap
+```
+
+**Permissions:** The installer grants the service `CAP_NET_RAW` and `CAP_NET_ADMIN` so
+nmap and scapy can do raw-socket scanning without running as root.
+
+---
 
 ## Install as a service  *(recommended)*
 
@@ -158,6 +182,34 @@ Local fallback  ←── when MikroTik is unreachable
    • scapy packet sniffer (per-device, needs root)
 ```
 
+## Traffic Logging
+
+MHS logs per-device bandwidth to a local SQLite database (`mhs.db`) every 30 seconds.
+
+| Feature | Detail |
+|---------|--------|
+| Retention | 7 days of bandwidth history |
+| Sample interval | 30 s |
+| History query | `GET /api/history/{ip}?minutes=60` |
+| Dashboard | Click any device row to open a 1-hour history chart |
+
+### Recently Disconnected
+
+The dashboard shows a **Recently Disconnected** section for devices that joined the
+network but disconnected within 5 minutes. This catches:
+
+- Phones connecting briefly to check connectivity
+- Scanning/probing devices
+- Misconfigured devices that drop off quickly
+
+| Setting | Value |
+|---------|-------|
+| Session considered "transient" if | online < 5 minutes |
+| Session closed after offline for | 3 minutes |
+| Lookback window shown | last 24 hours |
+
+Query directly: `GET /api/transient?hours=24`
+
 ## Project Layout
 
 ```
@@ -166,7 +218,8 @@ Network-Buddy/
 │   ├── main.py        # FastAPI app — orchestrates data sources
 │   ├── mikrotik.py    # RouterOS REST client + monitor
 │   ├── scanner.py     # Local device discovery (fallback)
-│   └── bandwidth.py   # Local bandwidth monitor (fallback)
+│   ├── bandwidth.py   # Local bandwidth monitor (fallback)
+│   └── db.py          # SQLite traffic log + device session store
 ├── static/
 │   ├── index.html     # Dashboard
 │   ├── style.css      # Dark theme
@@ -175,5 +228,6 @@ Network-Buddy/
 ├── run.py             # Entry point
 ├── run.sh             # Convenience start script
 ├── .env.example       # Credential template
-└── requirements.txt
+├── requirements.txt
+└── mhs.db             # SQLite database (created at runtime, gitignored)
 ```

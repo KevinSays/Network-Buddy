@@ -45,5 +45,13 @@ class Settings:
     app_host: str = field(default_factory=lambda: os.getenv("APP_HOST", "0.0.0.0"))
     app_port: int = field(default_factory=lambda: int(os.getenv("APP_PORT", "8000")))
 
+    # ── Alerts ────────────────────────────────────────────────────────────────
+    alert_webhook_url: str = field(default_factory=lambda: os.getenv("ALERT_WEBHOOK_URL", ""))
+    alert_ntfy_topic:  str = field(default_factory=lambda: os.getenv("ALERT_NTFY_TOPIC",  ""))
+
+    # ── Dashboard auth (HTTP Basic — leave blank to disable) ──────────────────
+    dashboard_user: str = field(default_factory=lambda: os.getenv("DASHBOARD_USER", ""))
+    dashboard_pass: str = field(default_factory=lambda: os.getenv("DASHBOARD_PASS", ""))
+
 
 settings = Settings()
